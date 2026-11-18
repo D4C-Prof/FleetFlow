@@ -1,10 +1,10 @@
-package tn.fleetflow;
+package lockin.fleetflow.drivers;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class FleetFlowApplicationTests {
+class DriversApplicationTests {
 
     @Test
     void contextLoads() {

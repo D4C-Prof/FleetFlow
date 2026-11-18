@@ -1,13 +1,16 @@
-package tn.fleetflow;
+package lockin.fleetflow.drivers;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
+
+@Slf4j
 @SpringBootApplication
-public class FleetFlowApplication {
+public class DriversApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(FleetFlowApplication.class, args);
+        SpringApplication.run(DriversApplication.class, args);
     }
 
 }
