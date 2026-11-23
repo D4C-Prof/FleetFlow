@@ -5,7 +5,13 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import lockin.fleetflow.deliveries.exception.BusinessRuleException;
+
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -17,6 +23,10 @@ public class DeliveryRoute {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
+
+    // optimistic locking: prevents two concurrent updates silently overwriting each other
+    @Version
+    private Long version;
 
     private UUID driverId;
 
@@ -44,7 +54,62 @@ public class DeliveryRoute {
     private Double estimatedDistance;
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private RouteStatus status = RouteStatus.PLANNED;
+
+    @OneToMany(mappedBy = "route", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OrderBy("sequenceNumber ASC")
+    private List<Delivery> deliveries = new ArrayList<>();
+
+    public List<Delivery> getDeliveries() {
+        return Collections.unmodifiableList(deliveries);
+    }
+
+    /** Appends a delivery at the end of the route (PLANNED only) and refreshes the distance. */
+    public Delivery addDelivery(UUID orderId, Address destination) {
+        assertPlanned();
+        boolean duplicate = deliveries.stream().anyMatch(d -> d.getOrderId().equals(orderId));
+        if (duplicate) {
+            throw new BusinessRuleException("Order " + orderId + " is already in this route");
+        }
+        Delivery delivery = new Delivery(this, orderId, destination, deliveries.size());
+        deliveries.add(delivery);
+        calculateDistance();
+        return delivery;
+    }
+
+    /** Removes a delivery (PLANNED only), re-numbers the others and refreshes the distance. */
+    public void removeDelivery(UUID deliveryId) {
+        assertPlanned();
+        boolean removed = deliveries.removeIf(d -> deliveryId.equals(d.getId()));
+        if (!removed) {
+            throw new BusinessRuleException("Delivery " + deliveryId + " is not in this route");
+        }
+        for (int i = 0; i < deliveries.size(); i++) {
+            deliveries.get(i).setSequenceNumber(i);
+        }
+        calculateDistance();
+    }
+
+    /** Total distance in km: origin -> delivery 1 -> delivery 2 -> ... */
+    public void calculateDistance() {
+        double total = 0;
+        Address previous = origin;
+        for (Delivery d : deliveries) {
+            total += previous.distanceTo(d.getDeliveryAddress());
+            previous = d.getDeliveryAddress();
+        }
+        this.estimatedDistance = total;
+    }
+
+    /** Called after each delivery status change: the route completes when every delivery is finished. */
+    void completeIfDone() {
+        if (status == RouteStatus.IN_PROGRESS
+                && !deliveries.isEmpty()
+                && deliveries.stream().allMatch(d -> d.getStatus().isFinished())) {
+            this.status = RouteStatus.COMPLETED;
+        }
+    }
 
     // Update route details only if the route is PLANNED
     public void updateDetails(Address origin,
@@ -53,13 +118,19 @@ public class DeliveryRoute {
 
         this.origin = origin;
         this.scheduledDate = scheduledDate;
+        calculateDistance();
     }
 
-    private void assertPlanned() {
+    void assertPlanned() {
         if (this.status != RouteStatus.PLANNED) {
-            throw new IllegalStateException(
-                    "Only PLANNED routes can be modified"
-            );
+            throw new BusinessRuleException("Only PLANNED routes can be modified");
+        }
+    }
+
+    void assertInProgress() {
+        if (this.status != RouteStatus.IN_PROGRESS) {
+            throw new BusinessRuleException(
+                    "Route must be IN_PROGRESS (current status: " + status + ")");
         }
     }
 }

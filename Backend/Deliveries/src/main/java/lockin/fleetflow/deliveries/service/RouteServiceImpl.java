@@ -4,6 +4,7 @@ import lockin.fleetflow.deliveries.domain.DeliveryRoute;
 import lockin.fleetflow.deliveries.domain.RouteStatus;
 import lockin.fleetflow.deliveries.dto.IMapper;
 import lockin.fleetflow.deliveries.dto.RouteDTO;
+import lockin.fleetflow.deliveries.exception.BusinessRuleException;
 import lockin.fleetflow.deliveries.exception.ResourceNotFoundException;
 import lockin.fleetflow.deliveries.repository.IDeliveryRouteRepository;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,7 @@ public class RouteServiceImpl implements IRouteService {
     private final IDeliveryRouteRepository routeRepo;
 
     @Override
+    @Transactional
     public RouteDTO createRoute(RouteDTO dto) {
         return map.toDTO(routeRepo.save(map.toEntity(dto)));
     }
@@ -43,10 +45,11 @@ public class RouteServiceImpl implements IRouteService {
     }
 
     @Override
+    @Transactional
     public void deleteRoute(UUID id) {
         DeliveryRoute route = getOrThrow(id);
         if (route.getStatus() != RouteStatus.PLANNED) {
-            throw new IllegalStateException("Only PLANNED routes can be deleted; cancel it instead");
+            throw new BusinessRuleException("Only PLANNED routes can be deleted; cancel it instead");
         }
         routeRepo.delete(route);
     }
