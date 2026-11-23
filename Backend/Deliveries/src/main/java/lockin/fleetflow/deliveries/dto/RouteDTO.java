@@ -6,6 +6,7 @@ import lockin.fleetflow.deliveries.domain.Address;
 import lockin.fleetflow.deliveries.domain.RouteStatus;
 import lombok.*;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor
@@ -20,4 +21,5 @@ public class RouteDTO {
     private LocalDateTime scheduledDate;
     private Double estimatedDistance; // read-only
     private RouteStatus status;       // read-only
+    private List<DeliveryDTO> deliveries; // read-only: use /routes/{id}/deliveries to change
 }
